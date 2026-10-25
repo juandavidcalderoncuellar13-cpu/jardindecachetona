@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Jardín de Cachetona 💗</title>
+<style>
+  :root {
+    --pink: #ff8fb1;
+    --dark-pink: #d94f83;
+    --cream: #fff8ed;
+    --ink: #633b54;
+    --green: #8fcf9a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    font-family: "Trebuchet MS", system-ui, sans-serif;
+    background: linear-gradient(180deg, #ffe6ef 0%, #fff7e8 100%);
+    display: flex;
+    justify-content: center;
+    padding: 14px;
+  }
+  .game-shell { width: min(100%, 900px); }
+  header { text-align: center; padding: 5px 8px 12px; }
+  h1 { margin: 0; color: #d94f83; font-size: clamp(1.55rem, 5vw, 2.6rem); }
+  .subtitle { margin: 6px 0 0; font-size: .98rem; }
+  .hud {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 8px; flex-wrap: wrap; margin-bottom: 9px;
+  }
+  .pill {
+    background: #fffdf8; border: 2px solid #ffd0df; border-radius: 999px;
+    padding: 8px 13px; font-weight: 800; box-shadow: 0 3px 0 #f7c3d4;
+  }
+  .game-frame {
+    background: #fffdf8; border: 4px solid #fff;
+    border-radius: 22px; overflow: hidden;
+    box-shadow: 0 12px 30px #b75c7a25;
+  }
+  canvas { display: block; width: 100%; height: auto; touch-action: none; }
+  .below { display: grid; grid-template-columns: 1fr auto; gap: 12px; margin-top: 12px; align-items: center; }
+  .message {
+    background: #fffdf8; border: 2px solid #ffd0df; border-radius: 16px;
+    padding: 12px 14px; min-height: 60px; line-height: 1.4;
+  }
+  .message strong { color: #d94f83; }
+  .controls { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 42px); gap: 5px; }
+  .controls button, .action-btn {
+    border: 0; border-radius: 13px; color: white; background: #f27fa5;
+    font-size: 1.15rem; font-weight: 900; box-shadow: 0 4px 0 #cf5c84;
+    cursor: pointer; touch-action: manipulation; user-select: none;
+  }
+  .controls button:active, .action-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #cf5c84; }
+  .controls .up { grid-column: 2; grid-row: 1; }
+  .controls .left { grid-column: 1; grid-row: 2; }
+  .controls .down { grid-column: 2; grid-row: 2; }
+  .controls .right { grid-column: 3; grid-row: 2; }
+  .actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .action-btn { padding: 10px 16px; font-size: .95rem; }
+  .action-btn.secondary { background: #9c86d9; box-shadow: 0 4px 0 #7965b2; }
+  .hint { text-align: center; font-size: .86rem; opacity: .85; margin: 12px 4px 4px; }
+  .overlay {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: #49283c88; padding: 18px; z-index: 5;
+  }
+  .overlay.show { display: flex; }
+  .letter {
+    width: min(100%, 440px); background: #fffaf3; border: 4px solid #ffc6d8;
+    border-radius: 24px; padding: 25px 22px; text-align: center;
+    box-shadow: 0 15px 45px #29102155; animation: pop .3s ease-out;
+  }
+  .letter .big { font-size: 3rem; }
+  .letter h2 { color: #d94f83; margin: 7px 0; }
+  .letter p { line-height: 1.65; }
+  @keyframes pop { from { transform: scale(.8); opacity: .4; } to { transform: scale(1); opacity: 1; } }
+  @media (max-width: 560px) {
+    body { padding: 8px; }
+    .below { grid-template-columns: 1fr; }
+    .controls { margin: 0 auto; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 46px); }
+    .controls button { font-size: 1.25rem; }
+    .hint { line-height: 1.5; }
+  }
+</style>
+</head>
+<body>
+<main class="game-shell">
+  <header>
+    <h1>🌷 El Jardín de Cachetona 🌷</h1>
+    <p class="subtitle">Un pequeño mundo hecho para recordarte lo especial que eres 💗</p>
+  </header>
+
+  <section class="hud" aria-label="Progreso del juego">
+    <div class="pill">💖 Corazones: <span id="score">0</span>/<span id="total">8</span></div>
+    <div class="pill">🐾 Gatitos encontrados: <span id="cats">0</span>/3</div>
+    <div class="pill">✨ Misión: explorar</div>
+  </section>
+
+  <div class="game-frame">
+    <canvas id="game" width="800" height="520" aria-label="Jardín interactivo"></canvas>
+  </div>
+
+  <section class="below">
+    <div class="message" id="message" aria-live="polite">
+      <strong>¡Hola, Cachetona! 💌</strong><br>
+      Explora el jardín, recoge los corazones y busca a los gatitos. Usa las flechas o WASD, o los botones de movimiento.
+    </div>
+    <div class="controls" aria-label="Controles de movimiento">
+      <button class="up" data-move="up" aria-label="Arriba">▲</button>
+      <button class="left" data-move="left" aria-label="Izquierda">◀</button>
+      <button class="down" data-move="down" aria-label="Abajo">▼</button>
+      <button class="right" data-move="right" aria-label="Derecha">▶</button>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="action-btn" id="helpBtn">💡 ¿Cómo se juega?</button>
+    <button class="action-btn secondary" id="soundBtn">🔊 Sonido: apagado</button>
+    <button class="action-btn secondary" id="restartBtn">↻ Volver a empezar</button>
+  </div>
+  <p class="hint">PC: usa las flechas o WASD · Celular: usa los botones rosas · Acércate a los gatitos y corazones.</p>
+</main>
+
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="letterTitle">
+  <div class="letter">
+    <div class="big">💗🐱🌸</div>
+    <h2 id="letterTitle">¡Lo lograste, Cachetona!</h2>
+    <p id="finalMessage">Encontraste todos los corazones de este jardín.</p>
+    <p>Si hoy ha sido un día difícil, recuerda que no tienes que resolverlo todo de una vez. Puedes descansar, respirar y avanzar poquito a poquito. Mereces cariño en los días buenos y también en los complicados. 💕</p>
+    <p><strong>Con mucho cariño, alguien que quiere verte sonreír. 🌷</strong></p>
+    <button class="action-btn" id="closeLetter">Volver al jardín</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+  const scoreEl = document.getElementById("score");
+  const catsEl = document.getElementById("cats");
+  const messageEl = document.getElementById("message");
+  const overlay = document.getElementById("overlay");
+  const soundBtn = document.getElementById("soundBtn");
+
+  const W = canvas.width, H = canvas.height;
+  const totalHearts = 8;
+  let score = 0, catsFound = 0, soundOn = false, audioCtx = null;
+  let lastTime = 0, winShown = false;
+  const player = { x: 400, y: 265, r: 15, speed: 190, face: 1 };
+  const keys = new Set();
+
+  const hearts = [
+    {x:95,y:95,taken:false},{x:235,y:180,taken:false},
+    {x:375,y:90,taken:false},{x:555,y:155,taken:false},
+    {x:700,y:95,taken:false},{x:670,y:350,taken:false},
+    {x:425,y:420,taken:false},{x:145,y:385,taken:false}
+  ];
+  const cats = [
+    {x:155,y:245,found:false,emoji:"🐱",msg:"¡Miau! Cachetona, hasta los días nublados tienen algo bonito. 🌤️"},
+    {x:560,y:300,found:false,emoji:"🐈",msg:"Este gatito te recuerda que descansar también está bien. Tómate tu tiempo. 🐾"},
+    {x:340,y:345,found:false,emoji:"😺",msg:"¡Ronroneo de suerte! Ojalá hoy encuentres una pequeña razón para sonreír. 💕"}
+  ];
+  const flowers = [];
+  for (let i=0;i<58;i++) {
+    flowers.push({x:18+((i*137)%764), y:18+((i*83)%484), c:["#ff9fbd","#fff0a6","#e7b8ff","#ffffff"][i%4], s:2+(i%3)});
+  }
+  const bushes = [
+    {x:75,y:250,w:52,h:28},{x:300,y:125,w:45,h:24},{x:490,y:235,w:55,h:26},
+    {x:730,y:250,w:42,h:24},{x:270,y:430,w:55,h:24},{x:520,y:450,w:60,h:26}
+  ];
+
+  function roundedRect(x,y,w,h,r,color) {
+    ctx.fillStyle=color; ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.fill();
+  }
+  function drawHeart(x,y,size,color="#ff5d91") {
+    ctx.save(); ctx.translate(x,y); ctx.scale(size/20,size/20);
+    ctx.beginPath(); ctx.moveTo(0,7);
+    ctx.bezierCurveTo(-20,-5,-11,-17,0,-8);
+    ctx.bezierCurveTo(11,-17,20,-5,0,7);
+    ctx.fillStyle=color; ctx.fill(); ctx.restore();
+  }
+  function drawFlower(x,y,s,color) {
+    ctx.save(); ctx.translate(x,y);
+    ctx.strokeStyle="#4b9d65"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,2); ctx.lineTo(0,10); ctx.stroke();
+    for(let i=0;i<5;i++){ const a=i*Math.PI*2/5; ctx.beginPath(); ctx.fillStyle=color; ctx.arc(Math.cos(a)*s,Math.sin(a)*s,s*.62,0,Math.PI*2); ctx.fill(); }
+    ctx.beginPath(); ctx.fillStyle="#f5c957"; ctx.arc(0,0,s*.55,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+  function drawWorld() {
+    ctx.fillStyle="#bfe8b1"; ctx.fillRect(0,0,W,H);
+    // Soft patches in the grass
+    for(let i=0;i<16;i++){
+      ctx.fillStyle=i%2?"#b5e1a7":"#c9edb9";
+      ctx.beginPath(); ctx.ellipse((i*173+40)%W,(i*97+35)%H,70,34,i*.3,0,Math.PI*2); ctx.fill();
+    }
+    // Winding path
+    ctx.beginPath(); ctx.moveTo(0,290); ctx.bezierCurveTo(170,245,200,365,345,300);
+    ctx.bezierCurveTo(485,235,555,380,800,315); ctx.lineTo(800,370);
+    ctx.bezierCurveTo(565,435,480,290,360,350); ctx.bezierCurveTo(205,425,150,300,0,345); ctx.closePath();
+    ctx.fillStyle="#f6dfb9"; ctx.fill();
+    flowers.forEach(f=>drawFlower(f.x,f.y,f.s,f.c));
+    bushes.forEach(b=>{
+      ctx.fillStyle="#6fbd7d";
+      ctx.beginPath(); ctx.ellipse(b.x,b.y,b.w*.55,b.h*.55,0,0,Math.PI*2);
+      ctx.ellipse(b.x+b.w*.4,b.y-5,b.w*.48,b.h*.55,0,0,Math.PI*2);
+      ctx.ellipse(b.x+b.w*.8,b.y,b.w*.5,b.h*.55,0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#9bd88e"; ctx.beginPath(); ctx.arc(b.x+7,b.y-7,4,0,Math.PI*2); ctx.fill();
+    });
+    // Decorative pond
+    ctx.beginPath(); ctx.ellipse(685,235,52,24,-.2,0,Math.PI*2); ctx.fillStyle="#8ed8e6"; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(680,230,31,9,-.2,0,Math.PI*2); ctx.fillStyle="#bceef2"; ctx.fill();
+    drawFlower(650,235,5,"#ff9fbd"); drawFlower(710,242,5,"#fff0a6");
+    // Tiny sign
+    roundedRect(18,18,175,38,12,"#fff8e8");
+    ctx.fillStyle="#a84e77"; ctx.font="bold 15px Trebuchet MS"; ctx.fillText("Jardín de Cachetona",29,42);
+  }
+  function drawCollectibles(time) {
+    hearts.forEach((h,i)=>{
+      if(h.taken) return;
+      const bob=Math.sin(time/350+i)*3;
+      ctx.save(); ctx.shadowColor="#f94c89"; ctx.shadowBlur=12;
+      drawHeart(h.x,h.y+bob,25,"#ff5c91"); ctx.restore();
+      ctx.fillStyle="#fff7fa"; ctx.beginPath(); ctx.arc(h.x-3,h.y-6+bob,2,0,Math.PI*2); ctx.fill();
+    });
+    cats.forEach((c,i)=>{
+      if(c.found) return;
+      ctx.font="29px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(c.emoji,c.x,c.y+Math.sin(time/400+i)*2);
+      ctx.textAlign="start"; ctx.textBaseline="alphabetic";
+      ctx.fillStyle="#fff9e8"; ctx.beginPath(); ctx.arc(c.x+17,c.y-14,7,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#d94f83"; ctx.font="bold 10px sans-serif"; ctx.fillText("!",c.x+14,c.y-10);
+    });
+  }
+  function drawPlayer(time) {
+    const bob=Math.sin(time/100)*1.5;
+    // shadow
+    ctx.beginPath(); ctx.ellipse(player.x,player.y+15,16,6,0,0,Math.PI*2); ctx.fillStyle="#538d5a55"; ctx.fill();
+    // body
+    ctx.fillStyle="#ffb3ca"; ctx.beginPath(); ctx.arc(player.x,player.y+3+bob,13,0,Math.PI*2); ctx.fill();
+    // ears
+    ctx.fillStyle="#ffb3ca";
+    ctx.beginPath(); ctx.moveTo(player.x-10,player.y-6+bob); ctx.lineTo(player.x-12,player.y-19+bob); ctx.lineTo(player.x-2,player.y-12+bob); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(player.x+3,player.y-12+bob); ctx.lineTo(player.x+12,player.y-19+bob); ctx.lineTo(player.x+11,player.y-5+bob); ctx.fill();
+    // face
+    ctx.fillStyle="#633b54";
+    ctx.beginPath(); ctx.arc(player.x-4,player.y+1+bob,1.6,0,Math.PI*2); ctx.arc(player.x+4,player.y+1+bob,1.6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="#633b54"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(player.x,player.y+4+bob,3,0.2,Math.PI-.2); ctx.stroke();
+    drawHeart(player.x+12,player.y-17+bob,10,"#ff5c91");
+  }
+  function playTone(freq=660) {
+    if(!soundOn) return;
+    try {
+      audioCtx ||= new (window.AudioContext||window.webkitAudioContext)();
+      const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+      osc.frequency.value=freq; osc.type="sine"; gain.gain.setValueAtTime(.08,audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.18);
+      osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime+.18);
+    } catch(e) {}
+  }
+  function setMessage(title,text) {
+    messageEl.innerHTML="<strong>"+title+"</strong><br>"+text;
+  }
+  function update(dt) {
+    let dx=0,dy=0;
+    if(keys.has("ArrowUp")||keys.has("w"))dy--;
+    if(keys.has("ArrowDown")||keys.has("s"))dy++;
+    if(keys.has("ArrowLeft")||keys.has("a"))dx--;
+    if(keys.has("ArrowRight")||keys.has("d"))dx++;
+    if(dx&&dy){dx*=.7071;dy*=.7071;}
+    player.x=Math.max(18,Math.min(W-18,player.x+dx*player.speed*dt));
+    player.y=Math.max(58,Math.min(H-20,player.y+dy*player.speed*dt));
+
+    hearts.forEach(h=>{
+      if(!h.taken && Math.hypot(player.x-h.x,player.y-h.y)<27){
+        h.taken=true; score++; scoreEl.textContent=score; playTone(740);
+        setMessage("¡Un corazón para ti! 💖",["Cada pequeño paso cuenta, incluso cuando el día parece difícil.","Hay cosas bonitas que todavía te esperan.","No tienes que estar feliz todo el tiempo para ser increíble.","Tu forma de ser hace especial este pequeño mundo."][score%4]);
+        if(score===totalHearts) {
+          setMessage("¡Encontraste todos los corazones! 🌟","Ahora busca a los tres gatitos para descubrir todas las sorpresas.");
+          if(catsFound===cats.length) showWin();
+        }
+      }
+    });
+    cats.forEach(c=>{
+      if(!c.found && Math.hypot(player.x-c.x,player.y-c.y)<34){
+        c.found=true; catsFound++; catsEl.textContent=catsFound; playTone(520);
+        setMessage("Un mensaje de un gatito "+c.emoji,c.msg);
+        if(score===totalHearts && catsFound===cats.length) showWin();
+      }
+    });
+  }
+  function showWin(){
+    if(winShown)return; winShown=true;
+    document.getElementById("finalMessage").textContent="¡Reuniste los "+totalHearts+" corazones y encontraste a los 3 gatitos! Este jardín ahora está lleno de cariño gracias a ti.";
+    setTimeout(()=>overlay.classList.add("show"),350);
+    setMessage("¡Misión completada, Cachetona! 💗","Has llenado el jardín de corazones. Puedes volver a empezar cuando quieras.");
+  }
+  function frame(time) {
+    const dt=Math.min((time-lastTime)/1000||0,0.035); lastTime=time;
+    update(dt); drawWorld(); drawCollectibles(time); drawPlayer(time);
+    requestAnimationFrame(frame);
+  }
+  window.addEventListener("keydown",e=>{
+    const k=e.key.length===1?e.key.toLowerCase():e.key;
+    if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(k))e.preventDefault();
+    keys.add(k);
+  });
+  window.addEventListener("keyup",e=>keys.delete(e.key.length===1?e.key.toLowerCase():e.key));
+  window.addEventListener("blur",()=>keys.clear());
+
+  document.querySelectorAll("[data-move]").forEach(btn=>{
+    const direction=btn.dataset.move;
+    const keyMap={up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight"};
+    const start=e=>{e.preventDefault();keys.add(keyMap[direction]);};
+    const stop=e=>{e.preventDefault();keys.delete(keyMap[direction]);};
+    btn.addEventListener("pointerdown",start);
+    btn.addEventListener("pointerup",stop);
+    btn.addEventListener("pointerleave",stop);
+    btn.addEventListener("pointercancel",stop);
+  });
+  document.getElementById("helpBtn").addEventListener("click",()=>{
+    setMessage("¿Cómo se juega? 🎮","Muévete por el jardín y toca los 8 corazones y los 3 gatitos. Cada gatito tiene un mensaje especial. ¡Encuéntralos todos para desbloquear la carta final!");
+  });
+  soundBtn.addEventListener("click",()=>{
+    soundOn=!soundOn; soundBtn.textContent=soundOn?"🔊 Sonido: encendido":"🔊 Sonido: apagado";
+    if(soundOn)playTone(660);
+  });
+  document.getElementById("closeLetter").addEventListener("click",()=>overlay.classList.remove("show"));
+  overlay.addEventListener("click",e=>{if(e.target===overlay)overlay.classList.remove("show");});
+  document.getElementById("restartBtn").addEventListener("click",()=>{
+    score=0;catsFound=0;winShown=false;player.x=400;player.y=265;
+    hearts.forEach(h=>h.taken=false);cats.forEach(c=>c.found=false);
+    scoreEl.textContent="0";catsEl.textContent="0";overlay.classList.remove("show");
+    setMessage("¡Hola otra vez, Cachetona! 💌","El jardín está listo para una nueva aventura. ¡Vamos a buscar esos corazones!");
+  });
+  document.getElementById("total").textContent=totalHearts;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
